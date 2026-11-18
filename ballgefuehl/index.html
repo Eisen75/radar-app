@@ -1,0 +1,425 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Ballgefühl">
+<meta name="theme-color" content="#111418">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/icon-192.png">
+<title>Ballgefühl-Training</title>
+<style>
+  :root{
+    --bg:#111418; --card:#1b2028; --txt:#f2f4f7; --mut:#9aa4b2;
+    --work:#ff7a1a; --rest:#2fb5a0; --ready:#4a8cff; --done:#f5c542;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--txt);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;overscroll-behavior:none}
+  #app{height:100%;display:flex;flex-direction:column;align-items:center;
+    padding:max(14px,env(safe-area-inset-top)) 16px max(16px,env(safe-area-inset-bottom));
+    gap:10px;max-width:520px;margin:0 auto;transition:background .3s}
+  body[data-phase="work"]{--accent:var(--work)}
+  body[data-phase="rest"]{--accent:var(--rest)}
+  body[data-phase="ready"],body[data-phase="idle"]{--accent:var(--ready)}
+  body[data-phase="done"]{--accent:var(--done)}
+
+  .top{width:100%;display:flex;justify-content:space-between;align-items:baseline;color:var(--mut);font-size:15px}
+  .top b{color:var(--txt);font-variant-numeric:tabular-nums}
+  .bar{width:100%;height:8px;background:#262d38;border-radius:99px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:var(--accent);transition:width .25s linear}
+  .steps{width:100%;display:flex;gap:6px}
+  .steps span{flex:1;height:6px;border-radius:99px;background:#262d38}
+  .steps span.on{background:var(--accent)}
+  .steps span.fin{background:#4b5563}
+
+  .label{font-size:15px;letter-spacing:.12em;text-transform:uppercase;color:var(--accent);font-weight:700;margin-top:4px}
+  h1{font-size:28px;line-height:1.1;margin:0;text-align:center}
+  .timer{font-size:clamp(84px,30vw,150px);font-weight:800;line-height:1;
+    font-variant-numeric:tabular-nums;color:var(--accent);margin:2px 0}
+  .fig{width:100%;flex:1 1 auto;min-height:150px;background:var(--card);border-radius:20px;
+    display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden}
+  .fig svg{width:100%;height:100%;max-height:260px}
+  .hint{font-size:19px;text-align:center;line-height:1.3;min-height:2.6em}
+  .next{font-size:15px;color:var(--mut);text-align:center;min-height:1.3em}
+  .motto{font-size:15px;color:var(--mut);text-align:center;font-style:italic;min-height:1.3em}
+
+  .btns{width:100%;display:flex;gap:10px}
+  button{flex:1;border:0;border-radius:16px;font-size:20px;font-weight:700;padding:18px 10px;
+    background:var(--accent);color:#111418;font-family:inherit}
+  button.sec{background:#262d38;color:var(--txt);flex:0 0 auto;padding:18px 20px}
+  button.s{flex:1;font-size:14px;padding:12px 6px;font-weight:600}
+  .skips{gap:6px}
+  button:active{transform:scale(.98)}
+  .hidden{display:none!important}
+  .small{font-size:13px;color:var(--mut);text-align:center;line-height:1.35}
+  #awakeNote{color:#f5c542}
+  video#nosleep{position:fixed;left:-10px;top:-10px;width:1px;height:1px;opacity:.01;pointer-events:none}
+</style>
+</head>
+<body data-phase="idle">
+<div id="app">
+  <div class="top"><span id="roundTxt"></span><span>Gesamt <b id="totalLeft"></b></span></div>
+  <div class="bar"><i id="bar"></i></div>
+  <div class="steps" id="steps"></div>
+
+  <div class="label" id="label">Bereit?</div>
+  <h1 id="title">Ballgefühl-Training</h1>
+  <div class="timer" id="timer"></div>
+
+  <div class="fig" id="fig"></div>
+  <div class="hint" id="hint">Du brauchst nur einen Ball. Such dir einen Platz mit etwas Luft um dich herum.</div>
+  <div class="next" id="next"></div>
+  <div class="motto" id="motto"></div>
+
+  <div class="btns">
+    <button id="main">Los geht's</button>
+    <button id="stop" class="sec hidden">Stopp</button>
+  </div>
+  <div class="btns skips hidden" id="skips">
+    <button id="bPrev" class="sec s">◀ Zurück</button>
+    <button id="bSkip" class="sec s">Überspringen ▶</button>
+    <button id="bNext" class="sec s">Nächste Übung ▶▶</button>
+  </div>
+  <div class="small" id="awakeNote"></div>
+  <div class="small">Tipp: Ton am iPhone anschalten (Stumm-Schalter) und Lautstärke hoch.</div>
+</div>
+<video id="nosleep" muted loop playsinline webkit-playsinline src="data:video/mp4;base64,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"></video>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- Programm: n x 60 s Arbeit, dazwischen 15 s Pause ---------- */
+var WORK = 60, REST = 15, READY = 5;
+
+var SK = 'stroke="#f2f4f7" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" fill="none"';
+var BALL = '<circle cx="__X__" cy="__Y__" r="13" fill="#ff7a1a" stroke="#111418" stroke-width="2"/>';
+function ball(x,y,extra){return '<g'+(extra||'')+'>'+BALL.replace('__X__',x).replace('__Y__',y)+'</g>';}
+function svg(inner){return '<svg viewBox="0 0 300 220" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>';}
+var floor = '<line x1="10" y1="205" x2="290" y2="205" stroke="#3a4350" stroke-width="3" stroke-linecap="round"/>';
+var head  = function(x,y){return '<circle cx="'+x+'" cy="'+y+'" r="15" '+SK+'/>';};
+
+/* Animationen laufen per CSS-SMIL (animateTransform) -> keine JS-Last */
+function bounce(x,y0,y1,dur){
+  return '<g><circle cx="'+x+'" cy="0" r="13" fill="#ff7a1a" stroke="#111418" stroke-width="2"/>'+
+         '<animateTransform attributeName="transform" type="translate" values="0 '+y0+'; 0 '+y1+'; 0 '+y0+'" dur="'+dur+'s" repeatCount="indefinite" calcMode="spline" keySplines=".4 0 1 .6; 0 .4 .6 1" keyTimes="0;.5;1"/></g>';
+}
+function swing(x1,x2,y,dur){
+  return '<g><circle cx="0" cy="'+y+'" r="13" fill="#ff7a1a" stroke="#111418" stroke-width="2"/>'+
+         '<animateTransform attributeName="transform" type="translate" values="'+x1+' 0; '+x2+' 0; '+x1+' 0" dur="'+dur+'s" repeatCount="indefinite" calcMode="spline" keySplines=".5 0 .5 1; .5 0 .5 1" keyTimes="0;.5;1"/></g>';
+}
+var arrow = function(d){return '<path d="'+d+'" stroke="#4a8cff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="2 8"/>';};
+
+var EX = [
+ { name:'Dribbling an der Stelle',
+   hint:'Rechte Hand: Ball tief, auf Hüfthöhe, Kopf hoch.',
+   split:{at:30, hint:'Jetzt linke Hand! Gleiche Höhe, Kopf hoch.'},
+   fig: svg(floor+
+     head(110,52)+
+     '<path d="M110 67 L110 128 M110 80 L140 105 L150 140 M110 80 L85 105 L95 125 M110 128 L95 170 L90 203 M110 128 L128 168 L134 203" '+SK+'/>'+
+     '<g transform="translate(150 0)">'+bounce(0,150,190,0.55)+'</g>'+
+     '<path d="M150 150 L150 190" stroke="#4a8cff" stroke-width="2.5" stroke-dasharray="3 7" stroke-linecap="round"/>')},
+ { name:'Crossover vorne',
+   hint:'Ball vor dem Körper schnell von Hand zu Hand. Tief bleiben.',
+   split:{at:30, title:'Crossover hinter dem Rücken', hint:'Jetzt hinter dem Rücken! Ball seitlich am Körper vorbei von Hand zu Hand.', fig:
+     svg(floor+head(150,48)+
+     '<path d="M150 63 L150 122 M150 76 L128 100 L138 128 M150 76 L172 100 L162 128 M150 122 L132 168 L126 203 M150 122 L168 168 L174 203" '+SK+'/>'+
+     '<g transform="translate(0 62)">'+swing(110,190,100,0.8)+'</g>'+
+     '<path d="M118 175 Q150 150 182 175" stroke="#4a8cff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-dasharray="2 8"/>'+
+     '<text x="150" y="14" text-anchor="middle" font-size="14" fill="#9aa4b2" font-family="sans-serif">hinter dem Rücken</text>')},
+   fig: svg(floor+
+     head(150,48)+
+     '<path d="M150 63 L150 122 M150 76 L112 104 L100 140 M150 76 L188 104 L200 140 M150 122 L132 168 L126 203 M150 122 L168 168 L174 203" '+SK+'/>'+
+     '<g transform="translate(0 70)">'+swing(100,200,100,0.7)+'</g>'+
+     arrow('M108 178 Q150 205 192 178'))},
+ { name:'Zwischen den Beinen',
+   hint:'Ball durch die Beine, Hand wechseln. Bei jedem Dribbling den vorderen Fuß wechseln!',
+   fig: svg(floor+
+     head(150,40)+
+     '<path d="M150 55 L150 108 M150 68 L118 92 L108 124 M150 68 L182 92 L192 124 M150 108 L110 160 L96 203 M150 108 L190 160 L204 203" '+SK+'/>'+
+     '<g transform="translate(0 112)">'+swing(128,172,0,0.55)+'</g>'+
+     arrow('M128 172 Q150 140 172 172')+
+     '<path d="M96 203 L130 203 M170 203 L204 203" stroke="#4a8cff" stroke-width="3" stroke-linecap="round"/>'+
+     '<text x="150" y="20" text-anchor="middle" font-size="14" fill="#9aa4b2" font-family="sans-serif">Fuß vorne wechseln</text>')},
+ { name:'Ball-Kreisen & Acht',
+   hint:'Ball um Taille, Knie und Hals kreisen, dann Acht durch die Beine. Ohne dribbeln. Richtung wechseln.',
+   fig: svg(floor+
+     head(150,44)+
+     '<path d="M150 59 L150 112 M150 72 L112 98 L110 130 M150 72 L188 98 L190 130 M150 112 L126 162 L120 203 M150 112 L174 162 L180 203" '+SK+'/>'+
+     '<path d="M150 150 C110 120 110 200 150 170 C190 140 190 200 150 150" stroke="#4a8cff" stroke-width="3.5" fill="none" stroke-dasharray="2 8" stroke-linecap="round"/>'+
+     '<g><circle cx="0" cy="0" r="13" fill="#ff7a1a" stroke="#111418" stroke-width="2"/>'+
+     '<animateMotion dur="2.2s" repeatCount="indefinite" path="M150 150 C110 120 110 200 150 170 C190 140 190 200 150 150"/></g>')},
+ { name:'Tempo-Wechsel',
+   hint:'Je 10 s: tief und blitzschnell, dann hoch und langsam. Immer im Wechsel, beide Hände.',
+   fig: svg(floor+
+     head(110,52)+
+     '<path d="M110 67 L110 128 M110 80 L140 105 L150 140 M110 80 L85 105 L95 125 M110 128 L95 170 L90 203 M110 128 L128 168 L134 203" '+SK+'/>'+
+     '<g transform="translate(150 0)">'+bounce(0,150,190,0.3)+'</g>'+
+     '<g transform="translate(215 0)">'+bounce(0,130,190,0.9)+'</g>'+
+     '<text x="150" y="30" text-anchor="middle" font-size="14" fill="#9aa4b2" font-family="sans-serif">schnell</text>'+
+     '<text x="215" y="30" text-anchor="middle" font-size="14" fill="#9aa4b2" font-family="sans-serif">langsam</text>')},
+ { name:'Dribbling in Bewegung',
+   hint:'Vor, zurück und seitlich dribbeln. Ball bleibt immer neben dem Körper, Blick nach oben.',
+   fig: svg(floor+
+     head(150,52)+
+     '<path d="M150 67 L150 128 M150 80 L180 105 L190 140 M150 80 L125 105 L135 125 M150 128 L135 170 L130 203 M150 128 L168 168 L174 203" '+SK+'/>'+
+     '<g transform="translate(190 0)">'+bounce(0,150,190,0.55)+'</g>'+
+     '<path d="M40 100 L90 100 M50 90 L40 100 L50 110 M260 100 L210 100 M250 90 L260 100 L250 110" stroke="#4a8cff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')},
+ { name:'Dribbling & Strecksprung',
+   hint:'3x dribbeln, dann Ball festhalten und hoch springen. Weich landen!',
+   fig: svg(floor+
+     '<g transform="translate(0 30)"><g>'+head(150,52)+
+     '<path d="M150 67 L150 126 M150 80 L128 52 L146 32 M150 80 L172 52 L154 32 M150 126 L138 168 L136 175 M150 126 L162 168 L164 175" '+SK+'/>'+
+     '<circle cx="150" cy="16" r="13" fill="#ff7a1a" stroke="#111418" stroke-width="2"/>'+
+     '<animateTransform attributeName="transform" type="translate" values="0 0; 0 -26; 0 0; 0 0" keyTimes="0;.35;.7;1" dur="1.6s" repeatCount="indefinite"/></g></g>'+
+     '<path d="M70 120 L70 70 M60 82 L70 70 L80 82 M230 120 L230 70 M220 82 L230 70 L240 82" stroke="#4a8cff" stroke-width="3.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>')}
+];
+
+var MOTTOS = [
+ 'Schnelle Hände schlagen große Hände.',
+ 'Kopf hoch. Ball spüren, nicht anschauen.',
+ 'Jede Minute macht dich besser.',
+ 'Tief bleiben. Ball kontrollieren.',
+ 'Das ist dein Training. Zieh es durch.',
+ 'Fast geschafft. Noch einmal alles geben.',
+ 'Sauber schlägt schnell. Dann wird es schnell.',
+ 'Stark! Weiter so.'
+];
+
+/* ---------- Zeitplan ---------- */
+var plan = []; // {type:'work'|'rest', dur, ex}
+for (var i=0;i<EX.length;i++){
+  plan.push({type:'work',dur:WORK,ex:i});
+  if (i<EX.length-1) plan.push({type:'rest',dur:REST,ex:i});
+}
+var TOTAL = 0; plan.forEach(function(p){ p.start=TOTAL; TOTAL+=p.dur; });   // 420
+
+/* ---------- DOM ---------- */
+function $(id){return document.getElementById(id);}
+var el = {timer:$('timer'),label:$('label'),title:$('title'),fig:$('fig'),hint:$('hint'),next:$('next'),
+          motto:$('motto'),main:$('main'),stop:$('stop'),bar:$('bar'),total:$('totalLeft'),steps:$('steps'),
+          round:$('roundTxt'),note:$('awakeNote'),skips:$('skips'),bPrev:$('bPrev'),bSkip:$('bSkip'),bNext:$('bNext')};
+var stepEls = [];
+EX.forEach(function(_,i){var s=document.createElement('span');el.steps.appendChild(s);stepEls.push(s);});
+
+function fmt(s){s=Math.max(0,Math.ceil(s));var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r;}
+function setPhase(p){document.body.setAttribute('data-phase',p);}
+
+/* ---------- Audio (WebAudio, nach Tipp entsperrt) ---------- */
+var ctx=null;
+function initAudio(){
+  try{
+    var AC = window.AudioContext||window.webkitAudioContext;
+    if(!ctx) ctx=new AC();
+    if(ctx.state==='suspended') ctx.resume();
+    // stiller Puffer, um iOS zu entsperren
+    var b=ctx.createBuffer(1,1,22050), s=ctx.createBufferSource(); s.buffer=b; s.connect(ctx.destination); s.start(0);
+  }catch(e){}
+}
+function beep(freq,dur,vol){
+  if(!ctx) return;
+  try{
+    if(ctx.state==='suspended') ctx.resume();
+    var o=ctx.createOscillator(), g=ctx.createGain(), t=ctx.currentTime;
+    o.type='sine'; o.frequency.value=freq;
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(vol||0.5,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+dur+0.02);
+  }catch(e){}
+}
+var shortBeep = function(){beep(880,0.12,0.5);};
+var longBeep  = function(){beep(1320,0.55,0.6);};
+var doneBeep  = function(){beep(660,0.2,0.5);setTimeout(function(){beep(880,0.2,0.5);},230);setTimeout(function(){beep(1320,0.5,0.6);},460);};
+
+/* ---------- Display an lassen ---------- */
+var wakeLock=null, nosleepOn=false, vid=$('nosleep');
+function keepAwake(){
+  var ok=false;
+  try{
+    if('wakeLock' in navigator){
+      navigator.wakeLock.request('screen').then(function(l){wakeLock=l;}).catch(function(){});
+      ok=true;
+    }
+  }catch(e){}
+  try{ var p=vid.play(); if(p&&p.then){p.then(function(){nosleepOn=true;}).catch(function(){});} else {nosleepOn=true;} ok=true;}catch(e){}
+  return ok;
+}
+function releaseAwake(){
+  try{ if(wakeLock){wakeLock.release();wakeLock=null;} }catch(e){}
+  try{ vid.pause(); nosleepOn=false; }catch(e){}
+}
+document.addEventListener('visibilitychange',function(){
+  if(!document.hidden && running){ keepAwake(); }
+});
+
+/* ---------- Zustand ---------- */
+var running=false, t0=0, readyUntil=0, raf=null, lastIdx=-1, lastSec=-1, beeped={}, mottoI=0, finished=false;
+
+function showFig(i){ el.fig.innerHTML = EX[i].fig; }
+
+function renderIdle(){
+  setPhase('idle'); running=false; finished=false;
+  el.label.textContent='Bereit?'; el.title.textContent='Ballgefühl-Training';
+  el.timer.textContent=fmt(TOTAL); el.total.textContent=fmt(TOTAL);
+  el.hint.textContent='Du brauchst nur einen Ball. Such dir einen Platz mit etwas Luft um dich herum.';
+  el.next.textContent=EX.length+' Übungen · je 60 s · dazwischen 15 s Pause';
+  el.motto.textContent='';
+  el.main.textContent="Los geht's"; el.stop.classList.add('hidden');
+  el.bar.style.width='0%'; stepEls.forEach(function(s){s.className='';});
+  el.round.textContent=fmt(TOTAL)+' Min · '+EX.length+' Übungen'; el.skips.classList.add('hidden');
+  showFig(0);
+}
+
+function start(){
+  initAudio();
+  var ok=keepAwake();
+  el.note.textContent = ok ? '' : 'Hinweis: Display bleibt evtl. nicht an. Stell in den iPhone-Einstellungen die Automatische Sperre auf „Nie“.';
+  running=true; finished=false; lastIdx=-2; lastSec=-1; beeped={};
+  readyUntil=Date.now()+READY*1000; t0=readyUntil;
+  el.main.textContent='Pause'; el.stop.classList.remove('hidden');
+  cancelAnimationFrame(raf); loop();
+}
+
+var paused=false, pausedAt=0;
+function togglePause(){
+  if(finished){ start(); return; }
+  if(!running && !paused){ start(); return; }
+  if(!paused){
+    paused=true; pausedAt=Date.now(); running=false; cancelAnimationFrame(raf);
+    el.main.textContent='Weiter'; el.label.textContent='Pausiert';
+  } else {
+    var d=Date.now()-pausedAt; t0+=d; readyUntil+=d; paused=false; running=true;
+    el.main.textContent='Pause'; lastIdx=-2; quietInit=true; initAudio(); keepAwake(); loop();
+  }
+}
+function stopAll(){
+  running=false; paused=false; cancelAnimationFrame(raf); releaseAwake(); renderIdle();
+}
+
+var splitShown=-1, quietInit=false;
+function applySplit(ex){
+  var sp=EX[ex].split;
+  if(sp.title) el.title.textContent=sp.title;
+  if(sp.hint) el.hint.textContent=sp.hint;
+  if(sp.fig) el.fig.innerHTML=sp.fig;
+}
+
+function loop(){
+  var now=Date.now();
+  if(now<readyUntil){
+    var left=(readyUntil-now)/1000;
+    setPhase('ready'); el.label.textContent='Mach dich bereit'; el.title.textContent=EX[0].name;
+    el.timer.textContent=Math.ceil(left); el.hint.textContent=EX[0].hint;
+    el.next.textContent='Gleich geht es los …'; el.motto.textContent='';
+    showFig(0); el.total.textContent=fmt(TOTAL);
+    var sec=Math.ceil(left);
+    if(sec!==lastSec){ lastSec=sec; if(sec<=3) shortBeep(); }
+    raf=requestAnimationFrame(loop); return;
+  }
+  var el_s=(now-t0)/1000;
+  if(el_s>=TOTAL){ finish(); return; }
+  var idx=0; for(var i=0;i<plan.length;i++){ if(el_s>=plan[i].start) idx=i; }
+  var p=plan[idx], inPhase=el_s-p.start, remain=p.dur-inPhase, sec2=Math.ceil(remain);
+
+  if(idx!==lastIdx){
+    lastIdx=idx; lastSec=-1; splitShown=-1;
+    if(p.type==='work'){
+      setPhase('work'); el.label.textContent='Los! Übung '+(p.ex+1)+' von '+EX.length;
+      el.title.textContent=EX[p.ex].name; el.hint.textContent=EX[p.ex].hint; showFig(p.ex);
+      var nx = p.ex<EX.length-1 ? 'Danach: 15 s Pause' : 'Letzte Übung! Gib alles.';
+      el.next.textContent=nx;
+      el.motto.textContent = MOTTOS[mottoI++ % MOTTOS.length];
+    } else {
+      setPhase('rest'); el.label.textContent='Pause · durchatmen';
+      var n=EX[p.ex+1]; el.title.textContent='Gleich: '+n.name;
+      el.hint.textContent=n.hint; showFig(p.ex+1);
+      el.next.textContent='Trink einen Schluck, schüttel die Hände aus.';
+      el.motto.textContent = MOTTOS[mottoI++ % MOTTOS.length];
+    }
+    if(idx>0 && !quietInit) longBeep();
+    quietInit=false;
+    el.skips.classList.remove('hidden');
+    if(p.type==='work'){
+      el.bSkip.textContent='Überspringen ▶';
+      el.bNext.classList.toggle('hidden', p.ex>=EX.length-1);
+    } else {
+      el.bSkip.textContent='Pause beenden ▶';
+      el.bNext.classList.add('hidden');
+    }
+    stepEls.forEach(function(s,k){ s.className = k<p.ex || (k===p.ex && p.type==='rest') ? 'fin' : (k===p.ex?'on':''); });
+    if(p.type==='rest' && p.ex<EX.length-1){ /* Schritt der nächsten Übung vorbereiten */ }
+  }
+  // 3-2-1 Piepser am Ende jeder Phase
+  if(sec2!==lastSec){ lastSec=sec2; if(sec2<=3 && sec2>=1) shortBeep(); }
+  // Zwischenwechsel innerhalb einer Übung (z. B. Hand wechseln, Crossover hinter dem Rücken)
+  if(p.type==='work' && EX[p.ex].split && inPhase>=EX[p.ex].split.at){
+    var key='s'+idx;
+    if(!beeped[key]){ beeped[key]=1; beep(1000,0.25,0.5); applySplit(p.ex); }
+    else if(splitShown!==idx){ applySplit(p.ex); }
+    splitShown=idx;
+  }
+
+  el.timer.textContent=fmt(remain);
+  el.total.textContent=fmt(TOTAL-el_s);
+  el.bar.style.width=(el_s/TOTAL*100).toFixed(2)+'%';
+  raf=requestAnimationFrame(loop);
+}
+
+function finish(){
+  running=false; finished=true; cancelAnimationFrame(raf); releaseAwake(); doneBeep();
+  setPhase('done'); el.label.textContent='Geschafft!'; el.title.textContent='Training durch 💪';
+  el.timer.textContent='0:00'; el.total.textContent='0:00'; el.bar.style.width='100%';
+  el.hint.textContent='Stark gemacht. Trink was und dehn kurz die Waden und Handgelenke.';
+  el.next.textContent=''; el.motto.textContent='Nochmal? Jede Wiederholung zählt.';
+  el.main.textContent='Nochmal'; el.stop.classList.add('hidden'); el.skips.classList.add('hidden');
+  stepEls.forEach(function(s){s.className='fin';});
+}
+
+function jumpTo(target){
+  var now=Date.now();
+  if(now<readyUntil){ readyUntil=now; t0=now; return; }      // Countdown überspringen
+  if(paused){ paused=false; running=true; el.main.textContent='Pause'; }
+  if(target>=TOTAL){ finish(); return; }
+  t0=now-target*1000; lastIdx=-2; lastSec=-1; splitShown=-1;
+  cancelAnimationFrame(raf); loop();
+}
+function curIdx(){
+  var e=(Date.now()-t0)/1000, idx=0;
+  for(var i=0;i<plan.length;i++){ if(e>=plan[i].start) idx=i; }
+  return {idx:idx, e:e};
+}
+function skipPhase(){ if(finished) return; var c=curIdx(); var n=c.idx+1; jumpTo(n>=plan.length?TOTAL:plan[n].start); }
+function nextExercise(){
+  if(finished) return; var c=curIdx(); var p=plan[c.idx];
+  var n=(p.type==='work')?c.idx+2:c.idx+1;
+  jumpTo(n>=plan.length?TOTAL:plan[n].start);
+}
+function prevExercise(){
+  if(finished) return; var c=curIdx(); var p=plan[c.idx];
+  var inP=c.e-p.start;
+  var w = (p.type==='work') ? c.idx : c.idx-1;       // aktuelle bzw. gerade beendete Übung
+  if(p.type==='work' && inP<3) w=c.idx-2;               // direkt am Anfang: eine Übung zurück
+  if(w<0) w=0;
+  jumpTo(plan[w].start);
+}
+el.bSkip.addEventListener('click',skipPhase);
+el.bNext.addEventListener('click',nextExercise);
+el.bPrev.addEventListener('click',prevExercise);
+el.main.addEventListener('click',togglePause);
+el.stop.addEventListener('click',stopAll);
+// Zoom per Doppeltipp verhindern
+var lastTouch=0; document.addEventListener('touchend',function(e){var n=Date.now(); if(n-lastTouch<300) e.preventDefault(); lastTouch=n;},{passive:false});
+
+renderIdle();
+
+if("serviceWorker" in navigator){ window.addEventListener("load",function(){ navigator.serviceWorker.register("sw.js").catch(function(){}); }); }
+})();
+</script>
+</body>
+</html>
